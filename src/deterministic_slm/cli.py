@@ -9,7 +9,7 @@ import httpx
 
 from deterministic_slm.backend import MissingProbabilitiesError, OpenAICompatibleBackend
 from deterministic_slm.reporting import RunRecord, summarize_runs
-from deterministic_slm.toy import run_toy_demo
+from deterministic_slm.toy import DEFAULT_PROMPT, run_toy_demo
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -19,18 +19,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("hello", help="Run the local toy determinism demo.")
+
+    prompt_demo = subparsers.add_parser(
+        "prompt-demo",
+        help="Show constructed temperature-0 divergence, then probe Ollama.",
+    )
+    _add_probe_options(prompt_demo, default_prompt=DEFAULT_PROMPT)
+
     ollama = subparsers.add_parser(
         "ollama-probe",
         help="Probe an OpenAI-compatible local Ollama endpoint.",
     )
-    ollama.add_argument("--model", default="qwen2.5:0.5b")
-    ollama.add_argument("--base-url", default="http://localhost:11434/v1")
-    ollama.add_argument("--prompt", default="Say hello in one short sentence.")
-    ollama.add_argument("--repeat", type=_positive_int, default=5)
-    ollama.add_argument("--max-tokens", type=_positive_int, default=32)
-    ollama.add_argument("--seed", type=int, default=0)
-    ollama.add_argument("--timeout", type=_positive_float, default=120.0)
-    ollama.add_argument("--allow-missing-probs", action="store_true")
+    _add_probe_options(ollama, default_prompt="Say hello in one short sentence.")
     return parser
 
 
@@ -40,6 +40,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "hello":
         return _run_hello()
+
+    if args.command == "prompt-demo":
+        return _run_prompt_demo(args)
 
     if args.command == "ollama-probe":
         return _run_ollama_probe(args)
@@ -53,9 +56,12 @@ def _run_hello() -> int:
     print("Deterministic toy demo: reduction grouping can change greedy output.")
     for scenario in result.scenarios:
         print(f"\nscenario: {scenario.name}")
+        print(f"prompt: {scenario.prompt}")
+        print(f"temperature: {scenario.temperature}")
         print(f"logits: {_json(scenario.logits)}")
         print(f"probabilities: {_json(scenario.probabilities)}")
         print(f"selected_token: {scenario.selected_token}")
+        print(f"output_text: {scenario.output_text}")
         print(f"output_hash: {scenario.output_hash}")
 
     repeated_result = run_toy_demo()
@@ -86,7 +92,38 @@ def _run_hello() -> int:
     return 0
 
 
-def _run_ollama_probe(args: argparse.Namespace) -> int:
+def _run_prompt_demo(args: argparse.Namespace) -> int:
+    print("constructed demo")
+    _print_constructed_demo(args.prompt)
+
+    print("\nlive Ollama probe")
+    return _run_ollama_probe(args, final_analysis=True)
+
+
+def _print_constructed_demo(prompt: str) -> None:
+    result = run_toy_demo(prompt=prompt)
+    for scenario in result.scenarios:
+        print(f"\nscenario: {scenario.name}")
+        print(f"prompt: {scenario.prompt}")
+        print(f"temperature: {scenario.temperature}")
+        print(f"logits: {_json(scenario.logits)}")
+        print(f"probabilities: {_json(scenario.probabilities)}")
+        print(f"selected_token: {scenario.selected_token}")
+        print(f"output_text: {scenario.output_text}")
+        print(f"output_hash: {scenario.output_hash}")
+
+    hashes = tuple(scenario.output_hash for scenario in result.scenarios)
+    selected_tokens = tuple(scenario.selected_token for scenario in result.scenarios)
+    output_texts = tuple(scenario.output_text for scenario in result.scenarios)
+    print("\nconstructed_status: divergence observed")
+    print(f"constructed_unique_output_count: {len(set(output_texts))}")
+    if len(set(hashes)) > 1 and len(set(selected_tokens)) > 1:
+        print("constructed_result: temperature-0 greedy outputs differ.")
+    else:
+        print("constructed_result: temperature-0 greedy outputs match.")
+
+
+def _run_ollama_probe(args: argparse.Namespace, *, final_analysis: bool = False) -> int:
     backend = OpenAICompatibleBackend(
         model=args.model,
         base_url=args.base_url,
@@ -148,7 +185,31 @@ def _run_ollama_probe(args: argparse.Namespace) -> int:
         else:
             print("token_probabilities: unavailable")
 
+    if final_analysis:
+        print(f"\nfinal_analysis: {_final_analysis(summary.unique_output_count, args.repeat)}")
+
     return 0
+
+
+def _final_analysis(unique_output_count: int, repeat: int) -> str:
+    if unique_output_count == 1:
+        return f"got 1 unique answer across {repeat} live runs."
+    return f"got {unique_output_count} different answers across {repeat} live runs."
+
+
+def _add_probe_options(
+    parser: argparse.ArgumentParser,
+    *,
+    default_prompt: str,
+) -> None:
+    parser.add_argument("--model", default="qwen2.5:0.5b")
+    parser.add_argument("--base-url", default="http://localhost:11434/v1")
+    parser.add_argument("--prompt", default=default_prompt)
+    parser.add_argument("--repeat", type=_positive_int, default=5)
+    parser.add_argument("--max-tokens", type=_positive_int, default=32)
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--timeout", type=_positive_float, default=120.0)
+    parser.add_argument("--allow-missing-probs", action="store_true")
 
 
 def _token_probability_map(tokens: list[dict[str, object]]) -> dict[str, float] | None:

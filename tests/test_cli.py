@@ -29,6 +29,83 @@ def test_hello_prints_logits_probabilities_selected_token_and_hash(capsys):
     assert "result: the same math grouped differently picked a different token." in captured.out
 
 
+def test_prompt_demo_prints_constructed_outputs_and_live_probe_summary(
+    capsys,
+    monkeypatch,
+):
+    created_backends = []
+
+    class FakeBackend:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+            self.calls = []
+            created_backends.append(self)
+
+        def complete(self, prompt: str, *, max_tokens: int):
+            self.calls.append((prompt, max_tokens))
+            return SimpleNamespace(
+                text="Hello! I am stable.",
+                text_hash="hash-stable",
+                latency_seconds=0.01,
+                tokens=[],
+            )
+
+    monkeypatch.setattr(cli, "OpenAICompatibleBackend", FakeBackend)
+
+    exit_code = cli.main(["prompt-demo", "--repeat", "2", "--max-tokens", "7"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "constructed demo" in captured.out
+    assert "live Ollama probe" in captured.out
+    assert "prompt: hi, how are you?" in captured.out
+    assert "temperature: 0" in captured.out
+    assert "Hi, I'm doing well." in captured.out
+    assert "Hello, I'm good, thanks for asking." in captured.out
+    assert "status: no divergence observed" in captured.out
+    assert "unique_output_count: 1" in captured.out
+    assert "final_analysis: got 1 unique answer across 2 live runs." in captured.out
+    assert created_backends[0].kwargs == {
+        "model": "qwen2.5:0.5b",
+        "base_url": "http://localhost:11434/v1",
+        "seed": 0,
+        "timeout": 120.0,
+        "allow_missing_probs": False,
+    }
+    assert created_backends[0].calls == [
+        ("hi, how are you?", 7),
+        ("hi, how are you?", 7),
+    ]
+
+
+def test_prompt_demo_final_analysis_reports_multiple_unique_live_answers(
+    capsys,
+    monkeypatch,
+):
+    answers = ["alpha", "beta", "alpha", "gamma", "beta"]
+
+    class FakeBackend:
+        def __init__(self, **kwargs):
+            pass
+
+        def complete(self, prompt: str, *, max_tokens: int):
+            text = answers.pop(0)
+            return SimpleNamespace(
+                text=text,
+                text_hash=f"hash-{text}",
+                latency_seconds=0.01,
+                tokens=[],
+            )
+
+    monkeypatch.setattr(cli, "OpenAICompatibleBackend", FakeBackend)
+
+    exit_code = cli.main(["prompt-demo", "--repeat", "5"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "final_analysis: got 3 different answers across 5 live runs." in captured.out
+
+
 def test_ollama_probe_uses_default_backend_settings_and_reports_summary(
     capsys,
     monkeypatch,

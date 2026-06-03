@@ -29,14 +29,36 @@ make hello
 This prints two fixed reduction groupings for the same toy logits. Each scenario
 includes:
 
+- the prompt
+- `temperature=0`
 - logits
 - softmax probabilities
 - the greedy `temperature=0` selected token
+- the mapped output text
 - an output hash
 
 The toy demo is the reliable local reproduction. It shows how deterministic
 floating-point work can still produce different greedy outputs when reduction
 grouping changes.
+
+## Combined Prompt Demo
+
+Run a combined demo for the prompt `hi, how are you?`:
+
+```bash
+uv run det-slm prompt-demo
+# or
+make demo
+# or
+make prompt-demo
+```
+
+This first prints the reliable constructed temperature-0 divergence, then runs
+the live Ollama probe with the same prompt. The live probe reports whether the
+local backend produced multiple full text outputs. A stable local model reports
+`no divergence observed` and the command still exits successfully. The command
+ends with a final analysis line such as `got 1 unique answer across 5 live runs`
+or `got 3 different answers across 5 live runs`.
 
 ## Optional Ollama Probe
 
@@ -57,6 +79,7 @@ make ollama-probe
 Useful options:
 
 ```bash
+uv run det-slm prompt-demo --repeat 5 --max-tokens 32
 uv run det-slm ollama-probe --repeat 5 --max-tokens 32
 uv run det-slm ollama-probe --allow-missing-probs
 uv run det-slm ollama-probe --model qwen2.5:0.5b --base-url http://localhost:11434/v1

@@ -11,12 +11,22 @@ def test_run_toy_demo_returns_two_probability_scenarios() -> None:
 
     for scenario in result.scenarios:
         assert scenario.name
+        assert scenario.prompt == "hi, how are you?"
+        assert scenario.temperature == 0
         assert set(scenario.logits) == {"A", "B"}
         assert set(scenario.probabilities) == {"A", "B"}
         assert scenario.selected_token in {"A", "B"}
+        assert scenario.output_text
         assert len(scenario.output_hash) == 64
         assert all(0.0 <= value <= 1.0 for value in scenario.probabilities.values())
         assert sum(scenario.probabilities.values()) == 1.0
+
+
+def test_toy_demo_accepts_custom_prompt() -> None:
+    first, second = run_toy_demo(prompt="custom prompt").scenarios
+
+    assert first.prompt == "custom prompt"
+    assert second.prompt == "custom prompt"
 
 
 def test_toy_demo_exposes_reduction_grouping_divergence() -> None:
@@ -26,6 +36,7 @@ def test_toy_demo_exposes_reduction_grouping_divergence() -> None:
     assert first.logits != second.logits
     assert first.probabilities != second.probabilities
     assert first.selected_token != second.selected_token
+    assert first.output_text != second.output_text
     assert first.output_hash != second.output_hash
 
 
