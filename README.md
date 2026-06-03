@@ -8,6 +8,20 @@ The first milestone is a local `uv` harness. It demonstrates the numerical
 shape of the problem without requiring a GPU, then optionally probes a local
 Ollama model through an OpenAI-compatible API.
 
+## What this repo is
+
+This repository is meant to make the determinism problem easy to inspect on a
+normal CPU machine. The `make demo` path intentionally works without GPU access:
+it shows a constructed floating-point reduction case where the same
+temperature-0 greedy setup can pick different outputs when the reduction
+grouping changes.
+
+This is not yet a full validation of the production GPU path described in the
+blog post. Validating that requires suitable NVIDIA hardware and a vLLM server
+configured for batch-invariant execution. I do not currently have access to that
+GPU hardware, so the repo documents and demonstrates the problem locally while
+leaving the full vLLM validation as the open blocker.
+
 ## Setup
 
 ```bash
@@ -99,9 +113,12 @@ run output.
 
 ## Limitation
 
-Local Ollama on a Mac can measure repeatability, but it does not validate the
-batch-invariant vLLM deployment path from the blog. That later phase needs
-suitable NVIDIA hardware and a vLLM server configured with:
+Local CPU execution and Ollama on a Mac are useful for showing the numerical
+shape of the problem and measuring repeatability of a local backend. They do
+not prove the batch-invariant vLLM deployment path from the blog.
+
+That validation is the tricky part: it needs suitable NVIDIA hardware that I do
+not currently have access to, plus a vLLM server configured with:
 
 ```bash
 VLLM_BATCH_INVARIANT=1
