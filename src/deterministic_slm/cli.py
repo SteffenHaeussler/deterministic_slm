@@ -97,7 +97,7 @@ def _run_prompt_demo(args: argparse.Namespace) -> int:
     _print_constructed_demo(args.prompt)
 
     print("\nlive Ollama probe")
-    return _run_ollama_probe(args, final_analysis=True)
+    return _run_ollama_probe(args, final_analysis=True, optional_unavailable=True)
 
 
 def _print_constructed_demo(prompt: str) -> None:
@@ -123,7 +123,12 @@ def _print_constructed_demo(prompt: str) -> None:
         print("constructed_result: temperature-0 greedy outputs match.")
 
 
-def _run_ollama_probe(args: argparse.Namespace, *, final_analysis: bool = False) -> int:
+def _run_ollama_probe(
+    args: argparse.Namespace,
+    *,
+    final_analysis: bool = False,
+    optional_unavailable: bool = False,
+) -> int:
     backend = OpenAICompatibleBackend(
         model=args.model,
         base_url=args.base_url,
@@ -153,6 +158,16 @@ def _run_ollama_probe(args: argparse.Namespace, *, final_analysis: bool = False)
         print(error.response.text, file=sys.stderr)
         return 1
     except httpx.RequestError as error:
+        if optional_unavailable:
+            print("live_status: unavailable")
+            print(f"backend: {args.base_url}")
+            print(f"backend request failed: {error}")
+            if final_analysis:
+                print(
+                    "\nfinal_analysis: no live backend result; "
+                    "no live nondeterminism evidence collected."
+                )
+            return 0
         print(f"backend request failed: {error}", file=sys.stderr)
         return 1
 
