@@ -11,9 +11,12 @@ from collections.abc import Callable
 @dataclass(frozen=True)
 class ToyScenario:
     name: str
+    prompt: str
+    temperature: int
     logits: dict[str, float]
     probabilities: dict[str, float]
     selected_token: str
+    output_text: str
     output_hash: str
 
 
@@ -27,17 +30,25 @@ _TOKEN_CONTRIBUTIONS: dict[str, tuple[float, float, float]] = {
     "B": (1.0, -(2**-27), -(2**-25)),
 }
 
+_TOKEN_OUTPUTS: dict[str, str] = {
+    "A": "Hi, I'm doing well.",
+    "B": "Hello, I'm good, thanks for asking.",
+}
 
-def run_toy_demo() -> ToyDemoResult:
+DEFAULT_PROMPT = "hi, how are you?"
+
+
+def run_toy_demo(prompt: str = DEFAULT_PROMPT) -> ToyDemoResult:
     return ToyDemoResult(
         scenarios=(
-            _build_scenario("left_associative", _reduce_left_associative),
-            _build_scenario("nested_pair", _reduce_nested_pair),
+            _build_scenario(prompt, "left_associative", _reduce_left_associative),
+            _build_scenario(prompt, "nested_pair", _reduce_nested_pair),
         )
     )
 
 
 def _build_scenario(
+    prompt: str,
     name: str,
     reducer: Callable[[tuple[float, float, float]], float],
 ) -> ToyScenario:
@@ -47,13 +58,25 @@ def _build_scenario(
     }
     probabilities = _softmax(logits)
     selected_token = _greedy_select(logits)
-    output_hash = _hash_output(name, logits, probabilities, selected_token)
+    output_text = _TOKEN_OUTPUTS[selected_token]
+    output_hash = _hash_output(
+        name,
+        prompt,
+        0,
+        logits,
+        probabilities,
+        selected_token,
+        output_text,
+    )
 
     return ToyScenario(
         name=name,
+        prompt=prompt,
+        temperature=0,
         logits=logits,
         probabilities=probabilities,
         selected_token=selected_token,
+        output_text=output_text,
         output_hash=output_hash,
     )
 
@@ -96,15 +119,21 @@ def _greedy_select(logits: dict[str, float]) -> str:
 
 def _hash_output(
     name: str,
+    prompt: str,
+    temperature: int,
     logits: dict[str, float],
     probabilities: dict[str, float],
     selected_token: str,
+    output_text: str,
 ) -> str:
     payload = {
         "name": name,
+        "prompt": prompt,
+        "temperature": temperature,
         "logits": logits,
         "probabilities": probabilities,
         "selected_token": selected_token,
+        "output_text": output_text,
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
     return hashlib.sha256(encoded).hexdigest()
