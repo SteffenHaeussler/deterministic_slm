@@ -67,12 +67,18 @@ make demo
 make prompt-demo
 ```
 
-This first prints the reliable constructed temperature-0 divergence, then runs
-the live Ollama probe with the same prompt. The live probe reports whether the
-local backend produced multiple full text outputs. A stable local model reports
-`no divergence observed` and the command still exits successfully. The command
-ends with a final analysis line such as `got 1 unique answer across 5 live runs`
-or `got 3 different answers across 5 live runs`.
+This first prints the reliable constructed temperature-0 divergence, then tries
+the live Ollama probe with the same prompt. There are three different outcomes
+to read separately:
+
+- constructed toy divergence: reliable local demonstration
+- unavailable live Ollama backend: no live evidence collected
+- repeated live run with one output hash: negative or inconclusive live result
+
+If no local Ollama/OpenAI-compatible backend is running, `prompt-demo` reports
+`live_status: unavailable`, prints a final analysis saying no live
+nondeterminism evidence was collected, and still exits successfully. If the live
+probe runs, it reports whether the backend produced multiple full text outputs.
 
 ## Optional Ollama Probe
 
@@ -106,16 +112,19 @@ Run tests with:
 make test
 ```
 
-By default the probe requests token log probabilities and fails if the backend
-does not return them. When log probabilities are present, the harness converts
-each `logprob` to `probability = exp(logprob)` and includes those values in the
-run output.
+By default the direct `ollama-probe` command requests token log probabilities
+and fails if the backend is unavailable or does not return them. When log
+probabilities are present, the harness converts each `logprob` to
+`probability = exp(logprob)` and includes those values in the run output.
 
 ## Limitation
 
-Local CPU execution and Ollama on a Mac are useful for showing the numerical
-shape of the problem and measuring repeatability of a local backend. They do
-not prove the batch-invariant vLLM deployment path from the blog.
+Local CPU execution, notebook Transformers runs, and Ollama on a Mac are useful
+for showing the numerical shape of the problem and measuring repeatability of a
+local backend. A repeated greedy Transformers run that returns one output hash
+means no divergence was observed in that run; it does not prove backend-wide
+determinism across fresh processes, hardware, batching, or serving stacks. These
+paths do not prove the batch-invariant vLLM deployment path from the blog.
 
 That validation is the tricky part: it needs suitable NVIDIA hardware that I do
 not currently have access to, plus a vLLM server configured with:

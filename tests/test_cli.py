@@ -106,6 +106,36 @@ def test_prompt_demo_final_analysis_reports_multiple_unique_live_answers(
     assert "final_analysis: got 3 different answers across 5 live runs." in captured.out
 
 
+def test_prompt_demo_reports_unavailable_live_backend_without_failing(
+    capsys,
+    monkeypatch,
+):
+    class FakeBackend:
+        def __init__(self, **kwargs):
+            pass
+
+        def complete(self, prompt: str, *, max_tokens: int):
+            request = httpx.Request("POST", "http://localhost:11434/v1/chat/completions")
+            raise httpx.ConnectError("[Errno 111] Connection refused", request=request)
+
+    monkeypatch.setattr(cli, "OpenAICompatibleBackend", FakeBackend)
+
+    exit_code = cli.main(["prompt-demo", "--repeat", "1"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "constructed demo" in captured.out
+    assert "constructed_status: divergence observed" in captured.out
+    assert "live Ollama probe" in captured.out
+    assert "live_status: unavailable" in captured.out
+    assert "backend request failed: [Errno 111] Connection refused" in captured.out
+    assert (
+        "final_analysis: no live backend result; no live nondeterminism evidence collected."
+        in captured.out
+    )
+    assert captured.err == ""
+
+
 def test_ollama_probe_uses_default_backend_settings_and_reports_summary(
     capsys,
     monkeypatch,
