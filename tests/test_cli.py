@@ -19,6 +19,14 @@ def test_hello_prints_logits_probabilities_selected_token_and_hash(capsys):
     assert "probabilities" in captured.out
     assert "selected_token" in captured.out
     assert "output_hash" in captured.out
+    assert "expectation: repeating the same grouping gives the same hashes." in captured.out
+    assert "actual: repeated same-grouping hashes match." in captured.out
+    assert (
+        "expectation: changing only the reduction grouping can change the greedy answer."
+        in captured.out
+    )
+    assert "actual: hashes differ and selected tokens differ." in captured.out
+    assert "result: the same math grouped differently picked a different token." in captured.out
 
 
 def test_ollama_probe_uses_default_backend_settings_and_reports_summary(

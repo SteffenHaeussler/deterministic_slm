@@ -57,6 +57,32 @@ def _run_hello() -> int:
         print(f"probabilities: {_json(scenario.probabilities)}")
         print(f"selected_token: {scenario.selected_token}")
         print(f"output_hash: {scenario.output_hash}")
+
+    repeated_result = run_toy_demo()
+    hashes = tuple(scenario.output_hash for scenario in result.scenarios)
+    repeated_hashes = tuple(
+        scenario.output_hash for scenario in repeated_result.scenarios
+    )
+    selected_tokens = tuple(scenario.selected_token for scenario in result.scenarios)
+    hashes_differ = len(set(hashes)) > 1
+    selected_tokens_differ = len(set(selected_tokens)) > 1
+
+    print("\nexpectation: repeating the same grouping gives the same hashes.")
+    if hashes == repeated_hashes:
+        print("actual: repeated same-grouping hashes match.")
+    else:
+        print("actual: repeated same-grouping hashes differ.")
+
+    print(
+        "expectation: changing only the reduction grouping can change "
+        "the greedy answer."
+    )
+    if hashes_differ and selected_tokens_differ:
+        print("actual: hashes differ and selected tokens differ.")
+        print("result: the same math grouped differently picked a different token.")
+    else:
+        print("actual: hashes and selected tokens match.")
+        print("result: grouping did not change the picked token in this demo.")
     return 0
 
 
